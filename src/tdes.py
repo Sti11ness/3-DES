@@ -1,5 +1,27 @@
 import binascii
 import os
+import multiprocessing
+
+def encrypt_block(block, key1, key2, key3):
+    des1 = DES(key1)
+    des2 = DES(key2)
+    des3 = DES(key3)
+
+    block = des1.encrypt_block(block)
+    block = des2.decrypt_block(block)
+    block = des3.encrypt_block(block)
+    return block
+
+def decrypt_block(block, key1, key2, key3):
+    des1 = DES(key1)
+    des2 = DES(key2)
+    des3 = DES(key3)
+
+    block = des3.decrypt_block(block)
+    block = des2.encrypt_block(block)
+    block = des1.decrypt_block(block)
+    return block
+
 # Начальная перестановка IP
 IP = [
     58, 50, 42, 34, 26, 18, 10, 2,
@@ -225,33 +247,38 @@ class DES:
 
 class TDES:
     def __init__(self, key1, key2, key3):
-        self.des1 = DES(key1)
-        self.des2 = DES(key2)
-        self.des3 = DES(key3)
+        self.key1 = key1
+        self.key2 = key2
+        self.key3 = key3
+
+    @staticmethod
+    def encode_data(data):
+        return data.encode('utf-8')
+
+    @staticmethod
+    def decode_data(data):
+        return data.decode('utf-8')
 
     def encrypt(self, data):
         # Выполняем заполнение данных
         data = pad_data(data)
-        ciphertext = b''
-        for i in range(0, len(data), 8):
-            block = data[i:i+8]
-            block = self.des1.encrypt_block(block)
-            block = self.des2.decrypt_block(block)
-            block = self.des3.encrypt_block(block)
-            ciphertext += block
-        return ciphertext
+        blocks = [data[i:i + 8] for i in range(0, len(data), 8)]
+
+        # Используем multiprocessing для ускорения
+        with multiprocessing.Pool() as pool:
+            encrypted_blocks = pool.starmap(encrypt_block, [(block, self.key1, self.key2, self.key3) for block in blocks])
+
+        return b''.join(encrypted_blocks)
 
     def decrypt(self, data):
-        plaintext = b''
-        for i in range(0, len(data), 8):
-            block = data[i:i+8]
-            block = self.des3.decrypt_block(block)
-            block = self.des2.encrypt_block(block)
-            block = self.des1.decrypt_block(block)
-            plaintext += block
-        # Удаляем заполнение после полной расшифровки
-        plaintext = unpad_data(plaintext)
-        return plaintext
+        blocks = [data[i:i + 8] for i in range(0, len(data), 8)]
+
+        # Используем multiprocessing для ускорения
+        with multiprocessing.Pool() as pool:
+            decrypted_blocks = pool.starmap(decrypt_block, [(block, self.key1, self.key2, self.key3) for block in blocks])
+
+        decrypted_data = b''.join(decrypted_blocks)
+        return unpad_data(decrypted_data)
 
 def pad_data(data):
     pad_len = 8 - (len(data) % 8)
@@ -266,12 +293,6 @@ def unpad_data(data):
     if data[-pad_len:] != bytes([pad_len] * pad_len):
         raise ValueError("Invalid padding bytes.")
     return data[:-pad_len]
-
-def encode_data(data):
-    return data.encode('utf-8')
-
-def decode_data(data):
-    return data.decode('utf-8')
 
 def main():
     # Ключи должны быть 8 байт (64 бита) для DES

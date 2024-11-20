@@ -1,10 +1,9 @@
-import unittest
-import sys
 import os
-
+import sys
+import unittest
+import multiprocessing
 # Добавляем путь к директории src
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
-
 from tdes import DES, TDES
 
 class TestDES(unittest.TestCase):
@@ -35,17 +34,19 @@ class TestDES(unittest.TestCase):
 
         tdes = TDES(key1, key2, key3)
         # Генерируем большой текст, содержащий различные символы
-        plaintext = 'Тестовое сообщение.\n' * 1000  # Повторяем строку 10,000 раз
-        data = plaintext.encode('utf-8')
+        plaintext = 'Тестовое сообщение\n' * 5000  # Повторяем строку 5000 раз
+        data = tdes.encode_data(plaintext)
 
-        # Шифрование
+        # Шифрование с использованием multiprocessing
         ciphertext = tdes.encrypt(data)
 
-        # Расшифровка
+        # Расшифровка с использованием multiprocessing
         decrypted_data = tdes.decrypt(ciphertext)
-        decrypted_text = decrypted_data.decode('utf-8')
+        decrypted_text = tdes.decode_data(decrypted_data)
 
         self.assertEqual(plaintext, decrypted_text)
 
 if __name__ == '__main__':
+    # На Windows multiprocessing требует защиту вызова
+    multiprocessing.freeze_support()
     unittest.main()
